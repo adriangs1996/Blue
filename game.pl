@@ -140,7 +140,7 @@ add_selection(Board, Row, Tokens, NewBoard):- nth1(1, Board, PatternLine),
 
 /************************* Reglas que definen la fase de llenado de las factorias ****************************/
 
-%Obtener 4 losas aleatorias de un pool de losas de 5 colores. El pool consiste en 5 lista, cada una con tokens de ese color.
+%Obtener 4 losas aleatorias de un pool de losas de 5 colores. El pool consiste en 1 lista, con los tokens que quedan en la bolsa.
 delete_first(X,[X|T],T):-!.
 delete_first(X,[Y|T],[Y|T1]):-delete_first(X,T,T1).
 select4_from_pool(Pool, Selection, NewPool):- random_member(X, Pool),
@@ -153,6 +153,36 @@ select4_from_pool(Pool, Selection, NewPool):- random_member(X, Pool),
                                               delete_first(A, Pool3, NewPool),
                                               Selection = [X, Y, Z, A].
 
+fill_factories(Pool, 5, NewFactories, NewPool):- select4_from_pool(Pool, Selection1, Pool1),
+                                                 select4_from_pool(Pool1, Selection2, Pool2),
+                                                 select4_from_pool(Pool2, Selection3, Pool3),
+                                                 select4_from_pool(Pool3, Selection4, Pool4),
+                                                 select4_from_pool(Pool4, Selection5, NewPool),
+                                                 NewFactories = [Selection1, Selection2, Selection3, Selection4, Selection5].
+
+fill_factories(Pool, 7, NewFactories, NewPool):-  select4_from_pool(Pool, Selection1, Pool1),
+                                                  select4_from_pool(Pool1, Selection2, Pool2),
+                                                  select4_from_pool(Pool2, Selection3, Pool3),
+                                                  select4_from_pool(Pool3, Selection4, Pool4),
+                                                  select4_from_pool(Pool4, Selection5, Pool5),
+                                                  select4_from_pool(Pool5, Selection6, Pool6),
+                                                  select4_from_pool(Pool6, Selection7, NewPool),
+                                                  NewFactories = [Selection1, Selection2, Selection3, Selection4, Selection5, Selection6, Selection7].
+
+fill_factories(Pool, 9, NewFactories, NewPool):- select4_from_pool(Pool, Selection1, Pool1),
+                                                 select4_from_pool(Pool1, Selection2, Pool2),
+                                                 select4_from_pool(Pool2, Selection3, Pool3),
+                                                 select4_from_pool(Pool3, Selection4, Pool4),
+                                                 select4_from_pool(Pool4, Selection5, Pool5),
+                                                 select4_from_pool(Pool5, Selection6, Pool6),
+                                                 select4_from_pool(Pool6, Selection7, Pool7),
+                                                 select4_from_pool(Pool7, Selection8, Pool8),
+                                                 select4_from_pool(Pool8, Selection9, NewPool),
+                                                 NewFactories = [Selection1, Selection2, Selection3, Selection4, Selection5, Selection6, Selection7, Selection8, Selection9].
+
+fill_factories(Pool, _, F, NewPool):- !, fail.
+
+
 % Una jugada consiste en elegir las fichas del mismo color del centro de la mesa o
 % de alguna factoria, y colocarlas en alguna fila del patron de linea
 pick_from_factory(Color, FactoryNumber, Factories, Tokens, Remainder):- length(Factories, N),
@@ -163,7 +193,7 @@ pick_from_factory(Color, FactoryNumber, Factories, Tokens, Remainder):- length(F
                                                                         K > 0,
                                                                         findall(Color, (Len is 4 - K, between(1, Len, _)), Tokens).
 
-pick_from_center(Color, [initial_token| Center], Tokens, NewCenter):- get_colors(Center, Color, NewCenter),
+pick_from_center(Color, [initial_token | Center], Tokens, NewCenter):- get_colors(Center, Color, NewCenter),
                                                                       length(Center, N1),
                                                                       length(NewCenter, N2),
                                                                       findall(Color, (Len is N1-N2, between(1, Len, _)), Toks),
