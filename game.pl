@@ -10,7 +10,8 @@ yellow.
 black.
 % Initial token
 initial_token.
-
+ocupied.
+empty.
 /*
 Definir un tablero. Tratar de generar siempre tableros validos.
 Un tablero se compone de la pared de alicatado, una hilera de puntuacion,
@@ -28,6 +29,15 @@ y una linea de patrn valida.
 % en la casilla i, j y en la casilla i+1, j + 1, i+2, j+2, .....
 
 %///////////////        Utilities   /////////////////////////
+
+replaceP(_, _, [], []).
+replaceP(O, R, [O|T], [R|T2]):- replaceP(O, R, T, T2).
+replaceP(O, R, [H|T], [H|T2]):- dif(H,O), replaceP(O, R, T, T2).
+
+count([], _, 0).
+count([X|Y], X, C):- count(Y, X, Z),
+                     C is Z + 1.
+count([X1|Y], X, C):- count(Y, X, C).
 
 % Obtener el valor de la casilla [i,j] de una matriz
 cell_value(I, J, Matrix, X):- nth0(I, Matrix, Row), nth0(J, Row, X).
@@ -76,17 +86,82 @@ generate_valid_wall(OutWall):- random_permutation([1,2,3,4,5], X),
 ==================  Reglas del juego =====================
 */
 
-% Definir las condiciones bajo las cual una jugada es valida
+% Regla bajo la cual una seleccion de fichas se puede agregar al tablero.
+valid_patternLine_row(PLine, T):- member(empty, PLine),
+                                  forall(member(X, PLine), (member(X, T); X==empty)).
+
+fill_patternLine(PLine, T, NewP, R):- count(PLine, empty, Emptys),
+                                      length(PLine, C),
+                                      length(T, Colors),
+                                      ToFill is min(Emptys, Colors) + C - Emptys,
+                                      Others is C - ToFill,
+                                      Rem is Colors - min(Emptys, Colors),
+                                      member(Color, T),
+                                      findall(Color, (between(1, ToFill, _)), Line),
+                                      findall(empty, (between(1, Others, _)), EmptyLine),
+                                      append(EmptyLine, Line, NewP),
+                                      findall(Color, (between(1, Rem, _)), R).
+
+fill_floor(Floor, Tokens, NewFloor):- length(Tokens, N1),
+                                      count(Floor, empty, N2),
+                                      N1 =< N2,
+                                      count(Floor, ocupied, N3),
+                                      N4 is N2 - N1,
+                                      findall(ocupied, (between(1, N3, _)), OcupiedLine),
+                                      findall(ocupied, between(1, N1, _), FilledLine),
+                                      findall(empty, between(1, N4, _), Remainder),
+                                      append(OcupiedLine, FilledLine, NewFloorTemp),
+                                      append(NewFloorTemp, Remainder, NewFloor).
+
+
+build_new_board(PatternLine, OldLine, OldFloor, NewFloor, NewLine, OldBoard, OutNewBoard):- replaceP(OldLine, NewLine, PatternLine, NewPatternLine),
+                                                                                            replaceP(OldFloor, NewFloor, OldBoard, TempBoard),
+                                                                                            replaceP(PatternLine, NewPatternLine, TempBoard, OutNewBoard).
+
+add_selection(Board, Row, [initial_token|Tokens], NewBoard):- nth1(1, Board, PatterLine),
+                                                              nth1(3, Board, Floor),
+                                                              Row =< 5,
+                                                              nth1(Row, PatternLine, LineToFill),
+                                                              valid_patternLine_row(LineToFill, Tokens),
+                                                              fill_patternLine(LineToFill, Tokens, NewP, R),
+                                                              append([initial_token], R, Remainder),
+                                                              fill_floor(Floor, Remainder, NewFloor),
+                                                              build_new_board(PatternLine, LineToFill, Floor, NewFloor, NewP, Board, NewBoard).
+
+add_selection(Board, Row, Tokens, NewBoard):- nth1(1, Board, PatternLine),
+                                              nth1(3, Board, Floor),
+                                              Row =< 5,
+                                              nth1(Row, PatternLine, LineToFill),
+                                              valid_patternLine_row(LineToFill, Tokens),
+                                              fill_patternLine(LineToFill, Tokens, NewP, Remainder),
+                                              fill_floor(Floor, Remainder, NewFloor),
+                                              build_new_board(OldBoard, NewP, NewFloor, OutNewBoard).
+
+
+/************************* Reglas que definen la fase de llenado de las factorias ****************************/
+
+%Obtener 4 losas aleatorias de un pool de losas de 5 colores. El pool consiste en 5 lista, cada una con tokens de ese color.
+delete_first(X,[X|T],T):-!.
+delete_first(X,[Y|T],[Y|T1]):-delete_first(X,T,T1).
+select4_from_pool(Pool, Selection, NewPool):- random_member(X, Pool),
+                                              delete_first(X, Pool, PoolN1),
+                                              random_member(Y, PoolN1),
+                                              delete_first(Y, PoolN1, PoolN2),
+                                              random_member(Z, PoolN2),
+                                              delete_first(Z, PoolN2, Pool3),
+                                              random_member(A, Pool3),
+                                              delete_first(A, Pool3, NewPool),
+                                              Selection = [X, Y, Z, A].
 
 % Una jugada consiste en elegir las fichas del mismo color del centro de la mesa o
 % de alguna factoria, y colocarlas en alguna fila del patron de linea
 pick_from_factory(Color, FactoryNumber, Factories, Tokens, Remainder):- length(Factories, N),
-                                                                   FactoryNumber =< N,
-                                                                   nth1(FactoryNumber, Factories, F),
-                                                                   get_colors(F, Color, Remainder),
-                                                                   length(Remainder, K),
-                                                                   K > 0,
-                                                                   findall(Color, (Len is 4 - K, between(1, Len, _)), Tokens).
+                                                                        FactoryNumber =< N,
+                                                                        nth1(FactoryNumber, Factories, F),
+                                                                        get_colors(F, Color, Remainder),
+                                                                        length(Remainder, K),
+                                                                        K > 0,
+                                                                        findall(Color, (Len is 4 - K, between(1, Len, _)), Tokens).
 
 pick_from_center(Color, [initial_token| Center], Tokens, NewCenter):- get_colors(Center, Color, NewCenter),
                                                                       length(Center, N1),
@@ -99,5 +174,11 @@ pick_from_center(Color, Center, Tokens, NewCenter):- get_colors(Center, Color, N
                                                      length(NewCenter, N2),
                                                      findall(Color, (Len is N1-N2, between(1, Len, _)), Tokens).
 
+% Con los dos tipos de jugadas definidas, ver si una jugada es valida.
+valid_play(Color, Row, FactoryNumber, Factories, Board, Center, NewCenter, NewBoard):- pick_from_factory(Color, Row, FactoryNumber, Factories, T, R),
+                                                                                       add_selection(Board, T, NewBoard),
+                                                                                       append(Center, R, NewCenter).
 
+valid_play(Color, Row, Center, Board, NewCenter, NewBoard):- pick_from_center(Color, Row, Center, T, NewCenter),
+                                                             add_selection(Board, T, NewBoard).
 
