@@ -28,16 +28,27 @@ y una linea de patrn valida.
 % Esto permite que solo haya que revisar que los azulejos sean los mismos
 % en la casilla i, j y en la casilla i+1, j + 1, i+2, j+2, .....
 
+
 %///////////////        Utilities   /////////////////////////
+empty_list(N, L):- findall(empty, between(1, N, _), L).
+
+replace_rows(M, [], [], M).
+replace_rows(M, [Old], [New], NewM):- replaceP(Old, New, M, NewM).
+replace_rows(M, [O|T1], [N|T2], NewM):- replace_rows(M, T1, T2, TempM),
+                                        replaceP(O, N, TempM, NewM).
+
+list_reverse([], []).
+list_reverse([T|H], L):- list_reverse(H, R),
+                         append(R, [T], L).
 
 replaceP(_, _, [], []).
 replaceP(O, R, [O|T], [R|T2]):- replaceP(O, R, T, T2).
 replaceP(O, R, [H|T], [H|T2]):- dif(H,O), replaceP(O, R, T, T2).
 
-count([], _, 0).
+count([], X, 0).
 count([X|Y], X, C):- count(Y, X, Z),
                      C is Z + 1.
-count([X1|Y], X, C):- count(Y, X, C).
+count([X1|Y], X, C):- dif(X1, X), count(Y, X, C).
 
 % Obtener el valor de la casilla [i,j] de una matriz
 cell_value(I, J, Matrix, X):- nth0(I, Matrix, Row), nth0(J, Row, X).
@@ -143,6 +154,8 @@ add_selection(Board, Row, Tokens, NewBoard):- nth1(1, Board, PatternLine),
 %Obtener 4 losas aleatorias de un pool de losas de 5 colores. El pool consiste en 1 lista, con los tokens que quedan en la bolsa.
 delete_first(X,[X|T],T):-!.
 delete_first(X,[Y|T],[Y|T1]):-delete_first(X,T,T1).
+
+
 select4_from_pool(Pool, Selection, NewPool):- random_member(X, Pool),
                                               delete_first(X, Pool, PoolN1),
                                               random_member(Y, PoolN1),
@@ -180,7 +193,59 @@ fill_factories(Pool, 9, NewFactories, NewPool):- select4_from_pool(Pool, Selecti
                                                  select4_from_pool(Pool8, Selection9, NewPool),
                                                  NewFactories = [Selection1, Selection2, Selection3, Selection4, Selection5, Selection6, Selection7, Selection8, Selection9].
 
-fill_factories(Pool, _, F, NewPool):- !, fail.
+
+/************************ Reglas que definen el proceso de Alicatado **********************/
+
+sum([], 0).
+sum([X|Y], C):- sum(Y, Z), C is Z + X.
+sum_floor(Floor, 0):- not(member(ocupied, Floor)).
+sum_floor(Floor, S):- count(Floor, ocupied, O),
+                      FloorSum = [1, 2, 4, 6, 8, 11, 14],
+                      nth1(O, FloorSum, S).
+
+count_down_joined([ocupied], 1).
+count_down_joined([ocupied | R], C):- count_down_joined(R, Z),
+                                      C is Z + 1.
+count_down_joined([X|_], 0).
+
+find_vertically_joined(W, I, J, N):- findall(X, (nth1(K, W, Row), K =< I, nth1(J, Row, X)), Downs),
+                                     findall(X, (nth1(K, W, Row), K > I, nth1(J, Row, X)), Ups),
+                                     count_down_joined(Downs, C1),
+                                     count_down_joined(Ups, C2),
+                                     N is C1 + C2.
+
+find_horizontally_joined(W, I, J, N):- findall(X, (nth1(I, W, Row), nth1(K, Row, X), K < J), L),
+                                       findall(X, (nth1(I, W, Row), nth1(K, Row, X), K > J), Rights),
+                                       list_reverse(L, Lefts),
+                                       count_down_joined(Lefts, C1),
+                                       count_down_joined(Rights, C2),
+                                       N is C1 + C2 + 1.
+
+
+score(Wall, I, J, Score):- find_vertically_joined(Wall, I, J, S1),
+                           find_horizontally_joined(Wall, I, J, S2),
+                           Score is S1 + S2.
+
+alicated(PatternLine, Wall, Floor, NewP, NewW, Score):- findall(X, (member(X, PatternLine), count(X, empty, N), N == 0), ValidP),
+                                                        findall(X, (member(Y, ValidP), length(Y,I), empty_list(I, X)), NewPatterns),
+                                                        findall([X, S, I],
+                                                                (member(P, ValidP),
+                                                                 length(P, I),
+                                                                 nth1(I, Wall, W),
+                                                                 nth1(1, P, Color),
+                                                                 member(Color, W),
+                                                                 nth1(J, W, Color),
+                                                                 replaceP(Color, ocupied, W, X),
+                                                                 score(Wall, I, J, S)),
+                                                                WallScores),
+                                                        findall(X, (member(L, WallScores), nth1(2, L, X)), Scores),
+                                                        sum(Scores, Sum),
+                                                        sum_floor(Floor, Neg),
+                                                        Score is min(-Sum + Neg, 0) * -1,
+                                                        findall(X, (member(L, WallScores), nth1(1, L, X)), News),
+                                                        findall(X, (member(L, WallScores), nth1(3, L, I), nth1(I, Wall, X)), Olds),
+                                                        replace_rows(PatternLine, ValidP, NewPatterns, NewP),
+                                                        replace_rows(Wall, Olds, News, NewW).
 
 
 % Una jugada consiste en elegir las fichas del mismo color del centro de la mesa o
