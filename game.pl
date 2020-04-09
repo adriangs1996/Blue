@@ -36,7 +36,7 @@ tiled_all_walls(Boards, NewBoards):- findall(
                                              nth1(2, Board, W),
                                              nth1(3, Board, Floor),
                                              tiled(P, W, Floor, NewP, NewW, Score),
-                                             findall(empty, (between(1, 7, _), NewFloor)),
+                                             findall(empty, between(1, 7, _), NewFloor),
                                              nth1(4, Board, OldScore),
                                              NewScore is Score + OldScore,
                                              B = [NewP, NewW, NewFloor, NewScore]),
@@ -108,9 +108,11 @@ game(Boards, _, Pool, [[],[],[],[],[],[],[],[],[]], [], InitialPlayer,  Winner):
                                                                                   fill_factories(Pool, 9, NewF, NewPool), write(("filling factories\n")),
                                                                                   nth1(InitialPlayer, NewBoards, Board), write(("Playing:",InitialPlayer,"\n")),
                                                                                   play(InitialPlayer, Board, NewF, [initial_token], NewP, NewB, NewCenter, NewFactories, I),
-                                                                                  game(NewB, NewP, NewPool, NewFactories, NewCenter, I, Winner).
+                                                                                  replaceP(Board, NewB, NewBoards, NewBoards2),
+                                                                                  game(NewBoards2, NewP, NewPool, NewFactories, NewCenter, I, Winner).
 
 % Una Iteracion intermedia del juego
 game(Boards, Player, Pool, Factories, Center, InitialPlayer, Winner):- nth1(Player, Boards, Board), write(("Playing: ",Player,"\n")),
                                                                        play(Player, Board, Factories, Center, NewP, NewB, NewCenter, NewFactories, I),
-                                                                       game(NewB, NewP, Pool, NewFactories, NewCenter, I, Winner).
+                                                                       replaceP(Board, NewB, Boards, NewBoards),
+                                                                       game(NewBoards, NewP, Pool, NewFactories, NewCenter, I, Winner).

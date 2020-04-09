@@ -4,8 +4,14 @@ scan_best_row_in_wall(Wall, Row):- member(X, Wall),
 
 
 % Regla bajo la cual una seleccion de fichas se puede agregar al tablero.
+
+valid_patternLine_row(PLine, []).
+
 valid_patternLine_row(PLine, T):- member(empty, PLine),
                                   forall(member(X, PLine), (member(X, T); X==empty)).
+
+
+fill_patternLine(PLine, [], PLine, []).
 
 fill_patternLine(PLine, T, NewP, R):- count(PLine, empty, Emptys),
                                       length(PLine, C),
@@ -35,10 +41,11 @@ build_new_board(PatternLine, OldLine, OldFloor, NewFloor, NewLine, OldBoard, Out
                                                                                             replaceP(OldFloor, NewFloor, OldBoard, TempBoard),
                                                                                             replaceP(PatternLine, NewPatternLine, TempBoard, OutNewBoard).
 
-add_selection(Board, Row, [initial_token|Tokens], NewBoard):- nth1(1, Board, PatterLine),
+add_selection(Board, Row, [initial_token|Tokens], NewBoard):- nth1(1, Board, PatternLine),
                                                               nth1(3, Board, Floor),
-                                                              Row =< 5,
                                                               nth1(Row, PatternLine, LineToFill),
+                                                              write(("Select Row ", Row, " of pattern line to fill\n")),
+                                                              write((LineToFill,"\n")),
                                                               valid_patternLine_row(LineToFill, Tokens),
                                                               fill_patternLine(LineToFill, Tokens, NewP, R),
                                                               append([initial_token], R, Remainder),
@@ -47,18 +54,16 @@ add_selection(Board, Row, [initial_token|Tokens], NewBoard):- nth1(1, Board, Pat
 
 add_selection(Board, Row, Tokens, NewBoard):- nth1(1, Board, PatternLine),
                                               nth1(3, Board, Floor),
-                                              Row =< 5,
                                               nth1(Row, PatternLine, LineToFill),
                                               valid_patternLine_row(LineToFill, Tokens),
                                               fill_patternLine(LineToFill, Tokens, NewP, Remainder),
                                               fill_floor(Floor, Remainder, NewFloor),
-                                              build_new_board(OldBoard, NewP, NewFloor, OutNewBoard).
+                                              build_new_board(PatternLine,LineToFill, Floor, NewFloor, NewP, Board, NewBoard).
 
 
 % Una jugada consiste en elegir las fichas del mismo color del centro de la mesa o
 % de alguna factoria, y colocarlas en alguna fila del patron de linea
 pick_from_factory(Color, FactoryNumber, Factories, Tokens, Remainder):- length(Factories, N),
-                                                                        write((Factories," \n")),
                                                                         nth1(FactoryNumber, Factories, F),
                                                                         write(("picking from factory ", FactoryNumber,F," \n")),
                                                                         member(Color, F),
@@ -98,33 +103,36 @@ play(1, Board, Factories, _, NewP, NewB, NewCenter, NewFactories, I):- findall(X
                                                                        %seleccionar un color
                                                                        random_member(Color, Colors),
                                                                        nth1(Row, F, Factories),
-                                                                       write(("Player 1 pick ", Color, "from factory", Row)),
+                                                                       write(("Player 1 pick ", Color, "from factory", Row."\n")),
                                                                        %hacer una jugada valida seleccionando ese color de esa factoria
                                                                        valid_play(Color, R, Row, Factories, Board, Center, NewCenter, NewB),
                                                                        replaceP(F, [], Factories, NewFactories),
-                                                                       NewP is 2.
+                                                                       NewP is 2,
+                                                                       write(("Player 1 Board: ",NewB,"\n")).
 
 % Si no puede elegir de las factorias, elige del centro
 play(1, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (member(X, Center), dif(X, initial_token)), Colors),
                                                                     % seleccionar un color aleatorio del centro
                                                                     random_member(Color, Colors),
-                                                                    write(("Player 1 pick ", Color, "from center")),
+                                                                    write(("Player 1 pick ", Color, "from center\n")),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
                                                                     % comprobar si obtuvimos el token inicial
                                                                     nth1(3, NewB, Floor),
                                                                     member(initial_token, Floor),
                                                                     I is 1,
-                                                                    NewP is 2.
+                                                                    NewP is 2,
+                                                                    write(("Player 1 Board: ",NewB,"\n")).
 
 % Si no puede elegir de las factorias, elige del centro
 play(1, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (member(X, Center), dif(X, initial_token)), Colors),
                                                                     % seleccionar un color aleatorio del centro
                                                                     random_member(Color, Colors),
-                                                                    write(("Player 1 pick ", Color, "from center")),
+                                                                    write(("Player 1 pick ", Color, "from center\n")),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
                                                                     % Si se ejecuta esta regla, no obtuvimos el token inicial
+                                                                    write(("Player 1 Board: ",NewB,"\n")),
                                                                     NewP is 2.
 
 
@@ -135,9 +143,10 @@ play(2, Board, Factories, Center, NewP, NewB, NewCenter, NewFactories, I):- nth1
                                                                             write(("Player 2 selected row ",Row," to fill\n")),
                                                                             % Elegir de una factoria
                                                                             valid_play(Color, Row, F, Factories, Board, Center, NewCenter, NewB),
-                                                                            write(("Player 2 pick ", Color, "from factory", F)),
+                                                                            write(("Player 2 pick ", Color, "from factory", F, "\n")),
                                                                             nth1(F, Factories, Fact),
                                                                             replaceP(Fact, [], Factories, NewFactories),
+                                                                            write(("Player 2 Board: ",NewB,"\n")),
                                                                             NewP is 3.
 
 % El segundo juegador elige del centro
@@ -146,9 +155,10 @@ play(2, Board, Factories, Center, NewP, NewB, NewCenter, NewFactories, I):- nth1
                                                                             scan_best_row_in_wall(Wall, Row),
                                                                             % Elegir del Centro
                                                                             valid_play(Color, Row, Center, Board, NewCenter, NewB),
-                                                                            write(("Player 2 pick ", Color, "from center")),
+                                                                            write(("Player 2 pick ", Color, "from center\n")),
                                                                             nth1(3, NewB, Floor),
                                                                             member(initial_token, Floor),
+                                                                            write(("Player 2 Board: ",NewB,"\n")),
                                                                             I is 2,
                                                                             NewP is 3.
 
@@ -157,8 +167,9 @@ play(2, Board, Factories, Center, NewP, NewB, NewCenter, NewFactories, I):- nth1
                                                                             scan_best_row_in_wall(Wall, Row),
                                                                             % Elegir del Centro
                                                                             valid_play(Color, Row, Center, Board, NewCenter, NewB),
-                                                                            write(("Player 2 pick ", Color, "from center")),
+                                                                            write(("Player 2 pick ", Color, "from center\n")),
                                                                             % Si ejecutamos esta regla, es porque no obtuvimos el token inicial.
+                                                                            write(("Player 2 Board: ",NewB,"\n")),
                                                                             NewP is 3.
 
 
@@ -171,22 +182,24 @@ play(3, Board, Factories, _, NewP, NewB, NewCenter, NewFactories, I):- findall(X
                                                                        %seleccionar un color
                                                                        random_member(Color, Colors),
                                                                        nth1(Row, F, Factories),
-                                                                       write(("Player 3 pick ", Color, "from factory", Row)),
+                                                                       write(("Player 3 pick ", Color, "from factory", Row, "\n")),
                                                                        %hacer una jugada valida seleccionando ese color de esa factoria
                                                                        valid_play(Color, R, Row, Factories, Board, Center, NewCenter, NewB),
                                                                        replaceP(F, [], Factories, NewFactories),
+                                                                       write(("Player 3 Board: ", NewB,"\n")),
                                                                        NewP is 4.
 
 % Si no puede elegir de las factorias, elige del centro
 play(3, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (member(X, Center), dif(X, initial_token)), Colors),
                                                                     % seleccionar un color aleatorio del centro
                                                                     random_member(Color, Colors),
-                                                                    write(("Player 3 pick ", Color, "from center")),
+                                                                    write(("Player 3 pick ", Color, "from center\n")),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
                                                                     % comprobar si obtuvimos el token inicial
                                                                     nth1(3, NewB, Floor),
                                                                     member(initial_token, Floor),
+                                                                    write("Player 3 Board: ", NewB,"\n"),
                                                                     I is 3,
                                                                     NewP is 4.
 
@@ -196,7 +209,8 @@ play(3, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (
                                                                     random_member(Color, Colors),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
-                                                                    write(("Player 3 pick ", Color, "from center")),
+                                                                    write(("Player 3 pick ", Color, "from center\n")),
+                                                                    write(("Player 3 Board: ", NewB,"\n")),
                                                                     % Si se ejecuta esta regla, no obtuvimos el token inicial
                                                                     NewP is 4.
 
@@ -209,22 +223,24 @@ play(4, Board, Factories, _, NewP, NewB, NewCenter, NewFactories, I):- findall(X
                                                                        %seleccionar un color
                                                                        random_member(Color, Colors),
                                                                        nth1(Row, F, Factories),
-                                                                       write(("Player 4 pick ", Color, "from factory", Row)),
+                                                                       write(("Player 4 pick ", Color, "from factory", Row,"\n")),
                                                                        %hacer una jugada valida seleccionando ese color de esa factoria
                                                                        valid_play(Color, R, Row, Factories, Board, Center, NewCenter, NewB),
                                                                        replaceP(F, [], Factories, NewFactories),
+                                                                       write(("Player 4 Board: ", NewB,"\n")),
                                                                        NewP is 1.
 
 % Si no puede elegir de las factorias, elige del centro
 play(4, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (member(X, Center), dif(X, initial_token)), Colors),
                                                                     % seleccionar un color aleatorio del centro
                                                                     random_member(Color, Colors),
-                                                                    write(("Player 4 pick ", Color, "from center")),
+                                                                    write(("Player 4 pick ", Color, "from center\n")),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
                                                                     % comprobar si obtuvimos el token inicial
                                                                     nth1(3, NewB, Floor),
                                                                     member(initial_token, Floor),
+                                                                    write(("Player 4 Board: ", NewB,"\n")),
                                                                     I is 4,
                                                                     NewP is 1.
 
@@ -232,10 +248,11 @@ play(4, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (
 play(4, Board, _, Center, newP, NewB, NewCenter, NewFactories, I):- findall(X, (member(X, Center), dif(X, initial_token)), Colors),
                                                                     % seleccionar un color aleatorio del centro
                                                                     random_member(Color, Colors),
-                                                                    write(("Player 4 pick ", Color, "from center")),
+                                                                    write(("Player 4 pick ", Color, "from center\n")),
                                                                     % hacer una jugada valida seleccionando ese color del centro
                                                                     valid_play(Color, R, Center, Board, NewCenter, NewB),
                                                                     % Si se ejecuta esta regla, no obtuvimos el token inicial
+                                                                    write(("Player 4 Board: ", NewB,"\n")),
                                                                     NewP is 1.
 
 
