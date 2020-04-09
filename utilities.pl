@@ -40,3 +40,5 @@ sum([X|Y], C):- sum(Y, Z), C is Z + X.
 delete_first(X,[X|T],T):-!.
 delete_first(X,[Y|T],[Y|T1]):-delete_first(X,T,T1).
 
+get_max_score([X], Score):- nth1(4, X, Score).
+get_max_score([X|R], Score):- get_max_score(R, M), nth1(4, X, XScore), Score is min(-XScore, -M) * -1.

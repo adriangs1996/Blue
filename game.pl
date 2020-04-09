@@ -1,7 +1,7 @@
 %Include Section
-:-["utilities.pl"].
 :-["factories.pl"].
 :-["tiled.pl"].
+:-["players.pl"].
 
 % Obtener cantidad de factorias en dependencia de la cantidad de jugadores
 fnumber(Players, F):- (Players == 2, F = 5); (Players == 3, F = 7); (Players == 4, F = 9).
@@ -19,7 +19,7 @@ valid_wall(Wall):- length(Wall, W),
 valid_pattern_line(PatternLine):- (length(PatternLine, L), L == 5),
                                   forall(between(1, 5, X), (nth1(X, PatternLine, Y) , length(Y, K), K == X)).
 
-generate_valid_wall(OutWall):- random_permutation([1,2,3,4,5], X),
+generate_valid_wall(OutWall):- random_permutation([red, blue, yellow, black, white], X),
                                nth0(0, X, A),
                                nth0(1, X, B),
                                nth0(2, X, C),
@@ -27,93 +27,90 @@ generate_valid_wall(OutWall):- random_permutation([1,2,3,4,5], X),
                                nth0(4, X, E),
                                OutWall=[X, [E, A, B, C, D], [D, E, A, B, C], [C, D, E, A, B], [B, C, D, E, A]].
 
-% El orden es B(PatternLines, Wall, Floor, ScoreTrack)
-% El tablero Inicial siempre es valido
+
+tiled_all_walls(Boards, NewBoards):- findall(
+                                         B, (
+                                             between(1, 4, I),
+                                             nth1(I, Boards, Board),
+                                             nth1(1, Board, P),
+                                             nth1(2, Board, W),
+                                             nth1(3, Board, Floor),
+                                             tiled(P, W, Floor, NewP, NewW, Score),
+                                             findall(empty, (between(1, 7, _), NewFloor)),
+                                             nth1(4, Board, OldScore),
+                                             NewScore is Score + OldScore,
+                                             B = [NewP, NewW, NewFloor, NewScore]),
+                                         NewBoards
+                                     ).
+
+build_pool(Pool):- findall(red, between(1, 20, _), Reds),
+                   findall(blue, between(1, 20, _), Blues),
+                   findall(yellow, between(1, 20, _), Yellows),
+                   findall(black, between(1, 20, _), Blacks),
+                   findall(white, between(1, 20, _), Whites),
+                   NestedPool = [Whites, Reds, Blues, Yellows, Blacks],
+                   flatten(NestedPool, Pool).
+
 
 
 /*
 ==================  Reglas del juego =====================
 */
 
-% Regla bajo la cual una seleccion de fichas se puede agregar al tablero.
-valid_patternLine_row(PLine, T):- member(empty, PLine),
-                                  forall(member(X, PLine), (member(X, T); X==empty)).
+% El orden es B(PatternLines, Wall, Floor, ScoreTrack)
 
-fill_patternLine(PLine, T, NewP, R):- count(PLine, empty, Emptys),
-                                      length(PLine, C),
-                                      length(T, Colors),
-                                      ToFill is min(Emptys, Colors) + C - Emptys,
-                                      Others is C - ToFill,
-                                      Rem is Colors - min(Emptys, Colors),
-                                      member(Color, T),
-                                      findall(Color, (between(1, ToFill, _)), Line),
-                                      findall(empty, (between(1, Others, _)), EmptyLine),
-                                      append(EmptyLine, Line, NewP),
-                                      findall(Color, (between(1, Rem, _)), R).
-
-fill_floor(Floor, Tokens, NewFloor):- length(Tokens, N1),
-                                      count(Floor, empty, N2),
-                                      N1 =< N2,
-                                      count(Floor, ocupied, N3),
-                                      N4 is N2 - N1,
-                                      findall(ocupied, (between(1, N3, _)), OcupiedLine),
-                                      findall(ocupied, between(1, N1, _), FilledLine),
-                                      findall(empty, between(1, N4, _), Remainder),
-                                      append(OcupiedLine, FilledLine, NewFloorTemp),
-                                      append(NewFloorTemp, Remainder, NewFloor).
+%Definir la regla que determina si una partida termina.
+final(Board):- nth1(2, Board, Wall),
+               not(forall(member(Line, Wall), (count(Line, ocupied, N), N < 5))).
 
 
-build_new_board(PatternLine, OldLine, OldFloor, NewFloor, NewLine, OldBoard, OutNewBoard):- replaceP(OldLine, NewLine, PatternLine, NewPatternLine),
-                                                                                            replaceP(OldFloor, NewFloor, OldBoard, TempBoard),
-                                                                                            replaceP(PatternLine, NewPatternLine, TempBoard, OutNewBoard).
+%inicio del juego
+game(Winner):- build_pool(Pool),
+               fill_factories(Pool, 9, NewF, NewPool),
+               % Generar los 4 tableros de los jugadores
+               generate_valid_wall(Wall1),
+               generate_valid_wall(Wall2),
+               generate_valid_wall(Wall3),
+               generate_valid_wall(Wall4),
+               B1 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall1,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
+               B2 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall2,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
 
-add_selection(Board, Row, [initial_token|Tokens], NewBoard):- nth1(1, Board, PatterLine),
-                                                              nth1(3, Board, Floor),
-                                                              Row =< 5,
-                                                              nth1(Row, PatternLine, LineToFill),
-                                                              valid_patternLine_row(LineToFill, Tokens),
-                                                              fill_patternLine(LineToFill, Tokens, NewP, R),
-                                                              append([initial_token], R, Remainder),
-                                                              fill_floor(Floor, Remainder, NewFloor),
-                                                              build_new_board(PatternLine, LineToFill, Floor, NewFloor, NewP, Board, NewBoard).
+               B3 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall3,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
 
-add_selection(Board, Row, Tokens, NewBoard):- nth1(1, Board, PatternLine),
-                                              nth1(3, Board, Floor),
-                                              Row =< 5,
-                                              nth1(Row, PatternLine, LineToFill),
-                                              valid_patternLine_row(LineToFill, Tokens),
-                                              fill_patternLine(LineToFill, Tokens, NewP, Remainder),
-                                              fill_floor(Floor, Remainder, NewFloor),
-                                              build_new_board(OldBoard, NewP, NewFloor, OutNewBoard).
+               B4 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall4,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
+               Boards = [B1 , B2, B3, B4],
+               random(1, 4, Player),
+               game(Boards, Player, NewPool, NewF, [initial_token], InitialPlayer, Winner).
 
 
+% Final del juego
+game(Boards, _, _, _, _, _, Winner):- not(forall(member(Board, Boards), not(final(Board)))),
+                                      get_max_score(Boards, Winner).
 
-% Una jugada consiste en elegir las fichas del mismo color del centro de la mesa o
-% de alguna factoria, y colocarlas en alguna fila del patron de linea
-pick_from_factory(Color, FactoryNumber, Factories, Tokens, Remainder):- length(Factories, N),
-                                                                        FactoryNumber =< N,
-                                                                        nth1(FactoryNumber, Factories, F),
-                                                                        get_colors(F, Color, Remainder),
-                                                                        length(Remainder, K),
-                                                                        K > 0,
-                                                                        findall(Color, (Len is 4 - K, between(1, Len, _)), Tokens).
+%Primera Fase
+game(Boards, _, Pool, [[],[],[],[],[],[],[],[],[]], [], InitialPlayer,  Winner):- tiled_all_walls(Boards, NewBoards), write(("Tiling walls\n")),
+                                                                                  fill_factories(Pool, 9, NewF, NewPool), write(("filling factories\n")),
+                                                                                  nth1(InitialPlayer, NewBoards, Board), write(("Playing:",InitialPlayer,"\n")),
+                                                                                  play(InitialPlayer, Board, NewF, [initial_token], NewP, NewB, NewCenter, NewFactories, I),
+                                                                                  game(NewB, NewP, NewPool, NewFactories, NewCenter, I, Winner).
 
-pick_from_center(Color, [initial_token | Center], Tokens, NewCenter):- get_colors(Center, Color, NewCenter),
-                                                                      length(Center, N1),
-                                                                      length(NewCenter, N2),
-                                                                      findall(Color, (Len is N1-N2, between(1, Len, _)), Toks),
-                                                                      append([initial_token], Toks, Tokens).
-
-pick_from_center(Color, Center, Tokens, NewCenter):- get_colors(Center, Color, NewCenter),
-                                                     length(Center, N1),
-                                                     length(NewCenter, N2),
-                                                     findall(Color, (Len is N1-N2, between(1, Len, _)), Tokens).
-
-% Con los dos tipos de jugadas definidas, ver si una jugada es valida.
-valid_play(Color, Row, FactoryNumber, Factories, Board, Center, NewCenter, NewBoard):- pick_from_factory(Color, Row, FactoryNumber, Factories, T, R),
-                                                                                       add_selection(Board, T, NewBoard),
-                                                                                       append(Center, R, NewCenter).
-
-valid_play(Color, Row, Center, Board, NewCenter, NewBoard):- pick_from_center(Color, Row, Center, T, NewCenter),
-                                                             add_selection(Board, T, NewBoard).
-
+% Una Iteracion intermedia del juego
+game(Boards, Player, Pool, Factories, Center, InitialPlayer, Winner):- nth1(Player, Boards, Board), write(("Playing: ",Player,"\n")),
+                                                                       play(Player, Board, Factories, Center, NewP, NewB, NewCenter, NewFactories, I),
+                                                                       game(NewB, NewP, Pool, NewFactories, NewCenter, I, Winner).
