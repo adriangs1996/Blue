@@ -1,10 +1,10 @@
 %///////////////        Utilities   /////////////////////////
 empty_list(N, L):- findall(empty, between(1, N, _), L).
 
-replace_rows(M, [], [], M).
-replace_rows(M, [Old], [New], NewM):- replaceP(Old, New, M, NewM).
 replace_rows(M, [O|T1], [N|T2], NewM):- replace_rows(M, T1, T2, TempM),
                                         replaceP(O, N, TempM, NewM).
+
+replace_rows(M, [Old], [New], NewM):- replaceP(Old, New, M, NewM).
 
 list_reverse([], []).
 list_reverse([T|H], L):- list_reverse(H, R),
