@@ -80,11 +80,13 @@ build_pool(Pool):- findall(r, between(1, 20, _), Reds),
 % El orden es B(PatternLines, Wall, Floor, ScoreTrack)
 
 %Definir la regla que determina si una partida termina.
-final(Board):- nth1(2, Board, Wall),
-               not(forall(member(Line, Wall), (count(Line, ocupied, N), N < 5))),
-               member(Line, Wall),
-               count(Line, ocupied, N),
-               N == 5.
+final(Board, Pool):- nth1(2, Board, Wall),
+                     not(forall(member(Line, Wall), (count(Line, ocupied, N), N < 5))),
+                     member(Line, Wall),
+                     count(Line, ocupied, N),
+                     N == 5.
+
+final(_, [], [[], [], [], [], []], []).
 
 
 %inicio del juego
@@ -124,9 +126,9 @@ game(Winner):- build_pool(Pool),
 
 
 % Final del juego
-game(Boards, _, _, _, _, _, Winner):- member(B, Boards),
-                                      final(B),
-                                      get_max_score(Boards, Winner).
+game(Boards, _, Pool, Factories, Center, _, Winner):- member(B, Boards),
+                                                      final(B, Pool, Factories, Center),
+                                                      get_max_score(Boards, Winner).
 
 %Primera Fase
 game(Boards, _, Pool, [[],[],[],[],[]], [], InitialPlayer,  Winner):- write("\t\t ENTERING TILING FASE \n\n"),
