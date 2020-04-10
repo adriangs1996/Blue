@@ -129,3 +129,112 @@ Definir de esta forma el ciclo del juego, separa la logica del juego de la canti
 
 De querer jugar con mas jugadores, en el archivo play.pl se encuentran implementaciones para los jugadores 3 y 4, los cuales juegan de forma bastante simialar al 1, en cambio el jugador 2, intenta seguir una estrategia un poco greedy, al intentar llenar una fila del muro lo mas rapido posible (por supuesto, por simplicidad elige un color al azar de un almacenamiento a la hora de llenar una fila, el solo sabe la fila que quiere llenar, por eso es posible que no siempre su eleccion sea la mas apropiada, pues a lo mejor eligiendo otro color llena la linea de patron). Curiosamente, el jugador 1 gana aproximadamente la misma cantidad de veces que el jugador 2, y es que el jugador 1 juega casi que aleatorio, y sus jugadas repercuten bastante en lo que intente hacer el jugador 2, aun cuando el 1 no haga una buena jugada, puede que le quite al jugar 2 una buena posibilidad. Es incluso interesante, como de repente, el jugador 1 puede acumular de golpe hasta 36 puntos (es lo mas que vimos), aun cuando sus elecciones no habian alicatado en 1 o 2 fases anteriores, pero aleatoreamente fue construyendo gran cantidad de losas adyacentes, lo que hace que de golpe suba mucho su puntuacion. Quizas jugar aleatorio no sea tan mala idea :).
 
+El objetivo fundamental a la hora de escoger una fila para llenar para el jugador 2 esta dado al tratar de cumplir:
+
+```prolog
+scan_best_row_in_wall(Wall, Row, P):- member(X, Wall),
+                                      nth1(Row, Wall, X),
+                                      nth1(Row, P, Line),
+                                      count(Line, empty, N),
+                                      N > 0,
+                                      forall(member(Y, Wall), (dif(Y, X), count(Y, ocupied, N1), count(X, ocupied, N2), N1 =< N2)).
+
+scan_best_row_in_wall(Wall, Row, P):-  member(X, Wall),
+                                       nth1(Row, Wall, X),
+                                       nth1(Row, P, Line),
+                                       count(Line, empty, N),
+                                       N > 0.
+
+```
+
+Como se ve, intenta buscar una linea del muro, tal que para toda otra linea del muro la cantidad de elementos vacios de la primera sea menor o igual que los de la segunda (en otras palabras, a la que le falta menos para llenarse).
+
+Fuera de como juega cada jugador, diferentes objetivos restrigen las jugadas que se pueden hacer y velan porque se cumplan las reglas del juego. Uno de los mas importantes quizas es:
+
+```prolog
+valid_play(Color, Row, FactoryNumber, Factories, Board, Center, NewCenter, NewBoard, P, IP):- nth1(2, Board, Wall),
+                                                                                              nth1(Row, Wall, Line),
+                                                                                              member(Color, Line),
+                                                                                              dif(Color, ocupied),
+                                                                                              pick_from_factory(Color, FactoryNumber, Factories, T, R),
+                                                                                              add_selection(Board, Row, T, NewBoard),
+                                                                                              append(Center, R, NewCenter).
+
+valid_play(Color, Row, Center, Board, NewCenter, NewBoard, P, IP):- nth1(2, Board, Wall),
+                                                                    nth1(Row, Wall, Line),
+                                                                    member(Color, Line),
+                                                                    dif(Color, ocupied),
+                                                                    pick_from_center(Color, Center, T, NewCenter, P, IP),
+                                                                    add_selection(Board, Row, T, NewBoard).
+
+% Caso en que cogemos de la facotria pero solo podemos llenar el piso
+valid_play(Color, Row, FactoryNumber, Factories, Board, Center, NewCenter, NewBoard, P, IP):- nth1(3, Board, Floor),
+                                                                                              pick_from_factory(Color, FactoryNumber, Factories, T, R),
+                                                                                              length(T, N),
+                                                                                              count(Floor, empty, N2),
+                                                                                              N =< N2,
+                                                                                              fill_floor(Floor, T, NewFloor),
+                                                                                              replaceP(Floor, NewFloor, Board, NewBoard),
+                                                                                              append(Center, R, NewCenter).
+% Caso que escogemos del centro pero solo podemos llenar el piso
+valid_play(Color, Row, Center, Board, NewCenter, NewBoard, P, I):- pick_from_center(Color, Center, T, NewCenter, P, IP),
+                                                                   nth1(3, Board, Floor),
+                                                                   fill_floor(Floor, T, NewFloor),
+                                                                   replaceP(Floor, NewFloor, Board, NewBoard).
+```
+
+Este objetivo intenta realizar una seleccion del almacenamiento que se especifica, y solo triunfa si es posible agregarlo a nuestra Linea de Patron o a nuestro Piso. Objetivos intermedios como add_selection, fill_floor y pick_from_factory/center se ocupan de que cada uno de estos procesos solo triunfe si cumplen con las reglas que indican en sus nombres y que fueron discutidas anteriormente.
+
+Notar que por la forma en que estan elaboradas las reglas, la seleccion del jugador 1 nunca es del todo aleatoria, pues el jugador 1 de triunfar en una llamada al objetivo play, y para que esto se cumpla, cada una de estas reglas intermedias debe cumplirse, el solo hecho de llamar a random_member, por ejemplo, para seleccionar un color aleatorio de algun almacenamiento, pudiera provocar una cadena de fails que eventualmente harian fallar al objetivo principal, game. 
+
+Dicho esto, la forma de jugar del jugador 1 pudiera ser mejor descrita como " toma lo primero que este disponible y colocalo en algun lugar valido".
+
+Nos falta por definir las reglas que rigen entonces, el llenado de las factories, el alicatado, la extraccion del Pool, y el momento inicial donde se crean los tableros.
+
+De la extraccion del Pool se ocupa un objetivo que se llama select4_from_pool/3 que triunfa si es posible elegir aleatoriamente 4 elementos del Pool actual, y como efecto colateral devuelve el nuevo pool sin estos 4 elementos.
+
+Este objetivo es clave pues cada factory triufa en su llenado, si es posible que extraiga 4 elementos del pool, dicho asi el objetivo fill_factories/4 triunfa si por cada factoria definida, se pueden extraer 4 elementos del pool.
+
+Del alicatado se ocupa el objetivo tiled/6, que triunfa si todos las lineas de patron llenas contienen un color que puede ser sustituido en el muro por ocupied y a la vez, se les calcula el score que aportan estas casillas donde se pone ocupied. Notar que este objetivo debe triunfar aun cuando la cantidad de lineas de patron llenas sea 0, en dicho caso, solo se tiene en cuenta el Piso para el score (o sea se devuelve un score negativo).
+
+Para comenzar el juego, se utiliza una version de game/1, la cual a diferencia del game/7, se encarga de inicializar todo el juego, su definicion es la siguiente:
+
+```prolog
+game(Winner):- build_pool(Pool),
+               fill_factories(Pool, 5, NewF, NewPool),
+               % Generar los 4 tableros de los jugadores
+               generate_valid_wall(Wall1),
+               generate_valid_wall(Wall2),
+               generate_valid_wall(Wall3),
+               generate_valid_wall(Wall4),
+               B1 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall1,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
+               B2 = [
+                   [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+                   Wall2,
+                   [empty, empty, empty, empty, empty, empty, empty],
+                   0],
+
+               %% B3 = [
+               %%     [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+               %%     Wall3,
+               %%     [empty, empty, empty, empty, empty, empty, empty],
+               %%     0],
+
+               %% B4 = [
+               %%     [[empty], [empty, empty], [empty, empty, empty], [empty, empty, empty, empty], [empty, empty, empty, empty, empty]],
+               %%     Wall4,
+               %%     [empty, empty, empty, empty, empty, empty, empty],
+               %%     0],
+               Boards = [B1 , B2],
+               random(1, 2, Player),
+               write("Starting game\n"),
+               game(Boards, Player, NewPool, NewF, [initial_token], InitialPlayer, Winner).
+
+
+```
+
+Descomentando B3 y B4, y cambiando 5 por 9 en fill_factory en cada game, asi como redefiniendo en play.pl que luego del jugaor 2 viene el 3, luego del 3 viene el 4, y luego del 4 viene el 1, se puede extender el juego para 4 jugadores, aunque la salida no es muy amigable.
